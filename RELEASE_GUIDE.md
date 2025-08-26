@@ -75,7 +75,7 @@ The release should include:
 
 The configuration builds for:
 - Linux (amd64, arm64)
-- macOS (amd64, arm64) 
+- macOS (amd64, arm64)
 - Windows (amd64, arm64)
 
 ## Binary Names
@@ -83,7 +83,7 @@ The configuration builds for:
 Generated binaries follow this pattern:
 ```
 ai-code-template-go_v0.1.0_Darwin_arm64.tar.gz
-ai-code-template-go_v0.1.0_Linux_x86_64.tar.gz  
+ai-code-template-go_v0.1.0_Linux_x86_64.tar.gz
 ai-code-template-go_v0.1.0_Windows_x86_64.zip
 ```
 
@@ -95,7 +95,7 @@ ai-code-template-go_v0.1.0_Windows_x86_64.zip
    - Ensure you have a `main.go` file in the root
    - Check that `go build ./` works locally
 
-2. **"Template execution error"**  
+2. **"Template execution error"**
    - Check your `.goreleaser.yml` syntax
    - Run `goreleaser check` locally
 
@@ -123,7 +123,7 @@ ai-code-template-go_v0.1.0_Windows_x86_64.zip
 
 ### Semantic Versioning
 - `v1.0.0` - Major release
-- `v1.1.0` - Minor release  
+- `v1.1.0` - Minor release
 - `v1.1.1` - Patch release
 - `v1.0.0-beta.1` - Pre-release
 - `v1.0.0-rc.1` - Release candidate

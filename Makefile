@@ -101,22 +101,22 @@ vulnerability-check:
 build:
 	@echo "$(YELLOW)Building binaries...$(NC)"
 	mkdir -p $(BUILD_DIR)
-	
+
 	@echo "Building for Linux AMD64..."
 	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./
-	
+
 	@echo "Building for Linux ARM64..."
 	GOOS=linux GOARCH=arm64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./
-	
+
 	@echo "Building for macOS AMD64..."
 	GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./
-	
+
 	@echo "Building for macOS ARM64..."
 	GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./
-	
+
 	@echo "Building for Windows AMD64..."
 	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./
-	
+
 	@echo "$(GREEN)All builds completed!$(NC)"
 	@echo "$(YELLOW)Built binaries:$(NC)"
 	@ls -la $(BUILD_DIR)/
