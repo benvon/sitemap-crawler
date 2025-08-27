@@ -26,6 +26,7 @@ builds:
     goarch:
       - amd64
       - arm64
+      - armv7
 
     # Environment variables for the build
     env:
@@ -53,6 +54,7 @@ archives:
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
+      {{- else if eq .Arch "armv7" }}armv7
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
 
@@ -110,6 +112,9 @@ dockers:
       - "ghcr.io/benvon/{{ .ProjectName }}:latest"
     dockerfile: Dockerfile
     use: buildx
+    extra_files:
+      - README.md
+      - LICENSE
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -124,8 +129,28 @@ dockers:
     dockerfile: Dockerfile
     use: buildx
     goarch: arm64
+    extra_files:
+      - README.md
+      - LICENSE
     build_flag_templates:
       - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source={{.GitURL}}"
+      - "--label=org.opencontainers.image.licenses=Apache-2.0"
+  - image_templates:
+      - "ghcr.io/benvon/{{ .ProjectName }}:{{ .Version }}-armv7"
+      - "ghcr.io/benvon/{{ .ProjectName }}:latest-armv7"
+    dockerfile: Dockerfile
+    use: buildx
+    goarch: armv7
+    extra_files:
+      - README.md
+      - LICENSE
+    build_flag_templates:
+      - "--platform=linux/arm/v7"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
