@@ -28,8 +28,9 @@ type Config struct {
 	CacheHeader           string `mapstructure:"cache-header"`
 
 	// Output configuration
-	OutputFormat string `mapstructure:"output-format"`
-	Quiet        bool   `mapstructure:"quiet"`
+	OutputFormat     string        `mapstructure:"output-format"`
+	Quiet            bool          `mapstructure:"quiet"`
+	ProgressInterval time.Duration `mapstructure:"progress-interval"`
 
 	// Debug mode
 	Debug bool `mapstructure:"debug"`
@@ -59,6 +60,7 @@ parallel workers, custom headers, and cache verification mode.`,
 	cmd.Flags().String("cache-header", "X-Cache", "Header to check for cache status")
 	cmd.Flags().String("output-format", "text", "Output format (text, json, csv)")
 	cmd.Flags().Bool("quiet", false, "Suppress progress output")
+	cmd.Flags().Duration("progress-interval", 5*time.Second, "Progress report interval")
 	cmd.Flags().Bool("debug", false, "Enable debug logging")
 
 	// Mark required flags
@@ -98,6 +100,9 @@ parallel workers, custom headers, and cache verification mode.`,
 	}
 	if err := viper.BindPFlag("quiet", cmd.Flags().Lookup("quiet")); err != nil {
 		return nil, fmt.Errorf("failed to bind quiet flag: %w", err)
+	}
+	if err := viper.BindPFlag("progress-interval", cmd.Flags().Lookup("progress-interval")); err != nil {
+		return nil, fmt.Errorf("failed to bind progress-interval flag: %w", err)
 	}
 	if err := viper.BindPFlag("debug", cmd.Flags().Lookup("debug")); err != nil {
 		return nil, fmt.Errorf("failed to bind debug flag: %w", err)

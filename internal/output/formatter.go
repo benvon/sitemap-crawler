@@ -61,7 +61,7 @@ func (f *Formatter) FormatCacheStats(cacheStats *stats.CacheStats) string {
 
 // WriteToFile writes formatted output to a file
 func (f *Formatter) WriteToFile(filename string, content string) error {
-	return os.WriteFile(filename, []byte(content), 0644)
+	return os.WriteFile(filename, []byte(content), 0600)
 }
 
 // formatProgressText formats progress as text

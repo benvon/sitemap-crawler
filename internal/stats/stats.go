@@ -17,11 +17,14 @@ type Result struct {
 
 // Progress represents current crawling progress
 type Progress struct {
-	Processed       int           `json:"processed"`
-	Total           int           `json:"total"`
-	Percentage      float64       `json:"percentage"`
-	SuccessRate     float64       `json:"success_rate"`
-	AverageDuration time.Duration `json:"average_duration"`
+	Processed         int           `json:"processed"`
+	Total             int           `json:"total"`
+	Percentage        float64       `json:"percentage"`
+	SuccessRate       float64       `json:"success_rate"`
+	AverageDuration   time.Duration `json:"average_duration"`
+	ElapsedTime       time.Duration `json:"elapsed_time"`
+	EstimatedTimeLeft time.Duration `json:"estimated_time_left"`
+	RequestsPerSecond float64       `json:"requests_per_second"`
 }
 
 // FinalStats represents final crawling statistics
@@ -57,6 +60,7 @@ type Stats struct {
 	totalDuration time.Duration
 	minDuration   time.Duration
 	maxDuration   time.Duration
+	startTime     time.Time
 
 	// Cache verification stats
 	warmUpResults []*Result
@@ -79,6 +83,7 @@ func (s *Stats) SetTotalURLs(total int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.totalURLs = total
+	s.startTime = time.Now() // Start timing when we know the total
 }
 
 // AddResult adds a crawling result
@@ -149,12 +154,31 @@ func (s *Stats) GetProgress() Progress {
 		avgDuration = s.totalDuration / time.Duration(s.processed)
 	}
 
+	// Calculate elapsed time and ETA
+	elapsedTime := time.Since(s.startTime)
+	var estimatedTimeLeft time.Duration
+	var requestsPerSecond float64
+
+	if s.processed > 0 && elapsedTime > 0 {
+		// Calculate requests per second
+		requestsPerSecond = float64(s.processed) / elapsedTime.Seconds()
+
+		// Calculate ETA based on current processing rate
+		remaining := s.totalURLs - s.processed
+		if remaining > 0 && requestsPerSecond > 0 {
+			estimatedTimeLeft = time.Duration(float64(remaining)/requestsPerSecond) * time.Second
+		}
+	}
+
 	return Progress{
-		Processed:       s.processed,
-		Total:           s.totalURLs,
-		Percentage:      percentage,
-		SuccessRate:     successRate,
-		AverageDuration: avgDuration,
+		Processed:         s.processed,
+		Total:             s.totalURLs,
+		Percentage:        percentage,
+		SuccessRate:       successRate,
+		AverageDuration:   avgDuration,
+		ElapsedTime:       elapsedTime,
+		EstimatedTimeLeft: estimatedTimeLeft,
+		RequestsPerSecond: requestsPerSecond,
 	}
 }
 

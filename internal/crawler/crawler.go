@@ -103,10 +103,17 @@ func (c *Crawler) runStandardCrawl(urls []string) error {
 		close(resultChan)
 	}()
 
+	// Start progress reporter
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if !c.config.Quiet {
+		go c.startProgressReporter(ctx)
+	}
+
 	// Process results and update stats
 	for result := range resultChan {
 		c.stats.AddResult(result)
-		c.printProgress()
 	}
 
 	c.printFinalStats()
@@ -158,9 +165,16 @@ func (c *Crawler) warmUpCache(urls []string) error {
 		close(resultChan)
 	}()
 
+	// Start progress reporter for warm-up phase
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if !c.config.Quiet {
+		go c.startProgressReporter(ctx)
+	}
+
 	for result := range resultChan {
 		c.stats.AddWarmUpResult(result)
-		c.printProgress()
 	}
 
 	return nil
@@ -191,9 +205,16 @@ func (c *Crawler) verifyCache(urls []string) error {
 		close(resultChan)
 	}()
 
+	// Start progress reporter for cache verification phase
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if !c.config.Quiet {
+		go c.startProgressReporter(ctx)
+	}
+
 	for result := range resultChan {
 		c.stats.AddCacheResult(result)
-		c.printProgress()
 	}
 
 	return nil
@@ -281,20 +302,69 @@ func (c *Crawler) filterValidURLs(urls []string) []string {
 	return validURLs
 }
 
-// printProgress prints current progress
+// startProgressReporter starts a ticker-based progress reporter
+func (c *Crawler) startProgressReporter(ctx context.Context) {
+	ticker := time.NewTicker(c.config.ProgressInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.printProgress()
+		}
+	}
+}
+
+// printProgress prints current progress with enhanced information
 func (c *Crawler) printProgress() {
-	if c.config.Quiet {
+	progress := c.stats.GetProgress()
+
+	// Don't print if no progress yet
+	if progress.Processed == 0 {
 		return
 	}
 
-	progress := c.stats.GetProgress()
-	c.logger.WithFields(logrus.Fields{
-		"processed":    progress.Processed,
-		"total":        progress.Total,
-		"percentage":   fmt.Sprintf("%.1f%%", progress.Percentage),
-		"success_rate": fmt.Sprintf("%.1f%%", progress.SuccessRate),
-		"avg_duration": progress.AverageDuration,
-	}).Info("Progress update")
+	// Format durations for better readability
+	elapsedFormatted := c.formatDuration(progress.ElapsedTime)
+	etaFormatted := c.formatDuration(progress.EstimatedTimeLeft)
+	avgDurationFormatted := c.formatDuration(progress.AverageDuration)
+
+	// Create a human-readable progress message
+	message := fmt.Sprintf("Progress: %d/%d (%.1f%%) | Success Rate: %.1f%% | Speed: %.1f req/s | Elapsed: %s | ETA: %s | Avg Response: %s",
+		progress.Processed,
+		progress.Total,
+		progress.Percentage,
+		progress.SuccessRate,
+		progress.RequestsPerSecond,
+		elapsedFormatted,
+		etaFormatted,
+		avgDurationFormatted,
+	)
+
+	c.logger.Info(message)
+}
+
+// formatDuration formats a duration for human-readable display
+func (c *Crawler) formatDuration(d time.Duration) string {
+	if d == 0 {
+		return "N/A"
+	}
+
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	} else if d < time.Minute {
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	} else if d < time.Hour {
+		minutes := int(d.Minutes())
+		seconds := int(d.Seconds()) % 60
+		return fmt.Sprintf("%dm%ds", minutes, seconds)
+	} else {
+		hours := int(d.Hours())
+		minutes := int(d.Minutes()) % 60
+		return fmt.Sprintf("%dh%dm", hours, minutes)
+	}
 }
 
 // printFinalStats prints final statistics

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 func main() {
@@ -45,5 +46,14 @@ func main() {
 	fmt.Printf("  - http://localhost%s/plain-sitemap.txt\n", port)
 	fmt.Printf("\nPress Ctrl+C to stop\n")
 
-	log.Fatal(http.ListenAndServe(port, nil))
+	// Create server with proper timeouts to address G114
+	server := &http.Server{
+		Addr:         port,
+		Handler:      nil, // Use DefaultServeMux
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	log.Fatal(server.ListenAndServe())
 }
