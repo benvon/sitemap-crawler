@@ -117,7 +117,7 @@ dockers:
       - LICENSE
     build_flag_templates:
       - "--platform=linux/amd64"
-      - "--build-arg=BINARY_NAME={{.Binary}}"
+      - "--build-arg=BINARY_NAME={{.ProjectName}}"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
@@ -137,7 +137,7 @@ dockers:
       - LICENSE
     build_flag_templates:
       - "--platform=linux/arm64"
-      - "--build-arg=BINARY_NAME={{.Binary}}"
+      - "--build-arg=BINARY_NAME={{.ProjectName}}"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
