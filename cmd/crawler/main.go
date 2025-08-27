@@ -9,6 +9,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Version information (set by GoReleaser)
+var (
+	version = "dev"
+	commit  = "dev"
+	date    = "dev"
+	builtBy = "dev"
+)
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -23,6 +31,14 @@ func main() {
 	} else {
 		logger.SetLevel(logrus.InfoLevel)
 	}
+
+	// Log version information
+	logger.WithFields(logrus.Fields{
+		"version": version,
+		"commit":  commit,
+		"date":    date,
+		"builtBy": builtBy,
+	}).Info("Starting sitemap crawler")
 
 	// Create and run crawler
 	c := crawler.New(cfg, logger)
