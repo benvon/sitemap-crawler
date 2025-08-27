@@ -1,27 +1,34 @@
 # Dockerfile for GoReleaser
-# GoReleaser will build the binary and copy it into this image
-FROM alpine:latest
+# GoReleaser automatically copies the binary into the build context
+FROM ubuntu:latest
 
-# Install ca-certificates for HTTPS requests and wget for debugging
-RUN apk --no-cache add ca-certificates wget
+# Build argument for binary name (passed by GoReleaser)
+ARG BINARY_NAME=sitemap-crawler
+
+# Install ca-certificates for HTTPS requests
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
+RUN groupadd -g 1001 appgroup && \
+    useradd -u 1001 -g appgroup -m appuser
 
 WORKDIR /app
 
-# GoReleaser will copy the binary with the project name
-# Copy additional files
-COPY README.md .
-COPY LICENSE .
+# Copy the binary (GoReleaser makes it available in build context)
+COPY ${BINARY_NAME} ./${BINARY_NAME}
 
-# Change ownership to non-root user
-RUN chown -R appuser:appgroup /app
+# Copy additional files (made available via extra_files)
+COPY README.md ./README.md
+COPY LICENSE ./LICENSE
+
+# Make binary executable and set ownership
+RUN chmod +x ./${BINARY_NAME} && \
+    chown -R appuser:appgroup /app
 
 # Switch to non-root user
 USER appuser
 
 # Run the application
-# The binary name will match the project name (sitemap-crawler)
-CMD ["./sitemap-crawler"]
+CMD ["sh", "-c", "./${BINARY_NAME}"]
