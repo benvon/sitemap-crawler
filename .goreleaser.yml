@@ -110,11 +110,14 @@ dockers:
       - "ghcr.io/benvon/{{ .ProjectName }}:latest"
     dockerfile: Dockerfile
     use: buildx
+    ids:
+      - default
     extra_files:
       - README.md
       - LICENSE
     build_flag_templates:
       - "--platform=linux/amd64"
+      - "--build-arg=BINARY_NAME={{.Binary}}"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
@@ -127,11 +130,14 @@ dockers:
     dockerfile: Dockerfile
     use: buildx
     goarch: arm64
+    ids:
+      - default
     extra_files:
       - README.md
       - LICENSE
     build_flag_templates:
       - "--platform=linux/arm64"
+      - "--build-arg=BINARY_NAME={{.Binary}}"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
