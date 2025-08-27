@@ -15,7 +15,7 @@ jobs:
         # Use 'stable' for latest stable, and specify the last 2 versions explicitly
         # Update these only when new major Go versions are released (every 6 months)
         go-version: ['1.22', '1.23', 'stable']
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -52,7 +52,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -71,7 +71,7 @@ jobs:
   security:
     name: Security
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -79,22 +79,22 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version: '1.24'
 
-    - name: Run Gosec Security Scanner
+    - name: Run Security Scanner
       run: |
-        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
-        gosec -no-fail -fmt sarif -out results.sarif ./...
+        # Install and run govulncheck (official Go vulnerability scanner)
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        # Add Go bin to PATH
+        export PATH=$PATH:$(go env GOPATH)/bin
+        # Run govulncheck
+        govulncheck ./...
 
-    - name: Upload SARIF file
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: results.sarif
 
   vulnerability-check:
     name: Vulnerability Check
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -121,7 +121,7 @@ jobs:
           # Exclude Windows on ARM64 for simplicity
           - goos: windows
             goarch: arm64
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -140,7 +140,7 @@ jobs:
   mod-tidy-check:
     name: Go Mod Tidy Check
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5

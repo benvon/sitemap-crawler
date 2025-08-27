@@ -2,164 +2,167 @@ package config
 
 import (
 	"fmt"
-	"os"
-	"strconv"
+	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
-// Config holds all configuration for the application
+// Config holds all configuration for the sitemap crawler
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	Logging  LoggingConfig
-	Security SecurityConfig
+	// Sitemap configuration
+	SitemapURL string `mapstructure:"sitemap-url"`
+
+	// Crawling configuration
+	MaxWorkers     int           `mapstructure:"max-workers"`
+	RequestRate    int           `mapstructure:"request-rate"`
+	RequestTimeout time.Duration `mapstructure:"request-timeout"`
+	UserAgent      string        `mapstructure:"user-agent"`
+
+	// Headers configuration
+	Headers map[string]string `mapstructure:"headers"`
+
+	// Cache verification mode
+	CacheVerificationMode bool   `mapstructure:"cache-verification-mode"`
+	CacheHeader           string `mapstructure:"cache-header"`
+
+	// Output configuration
+	OutputFormat     string        `mapstructure:"output-format"`
+	Quiet            bool          `mapstructure:"quiet"`
+	ProgressInterval time.Duration `mapstructure:"progress-interval"`
+
+	// Debug mode
+	Debug bool `mapstructure:"debug"`
 }
 
-// ServerConfig holds server-specific configuration
-type ServerConfig struct {
-	Port         string
-	Host         string
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
-	IdleTimeout  time.Duration
-}
-
-// DatabaseConfig holds database-specific configuration
-type DatabaseConfig struct {
-	Host            string
-	Port            int
-	Name            string
-	User            string
-	Password        string
-	SSLMode         string
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-}
-
-// RedisConfig holds Redis-specific configuration
-type RedisConfig struct {
-	Host     string
-	Port     int
-	Password string
-	DB       int
-	PoolSize int
-}
-
-// LoggingConfig holds logging-specific configuration
-type LoggingConfig struct {
-	Level  string
-	Format string
-	File   string
-}
-
-// SecurityConfig holds security-specific configuration
-type SecurityConfig struct {
-	JWTSecret    string
-	JWTExpiry    time.Duration
-	BCryptCost   int
-	APIKey       string
-}
-
-// Load loads configuration from environment variables
+// Load loads configuration from command line flags and environment variables
 func Load() (*Config, error) {
-	cfg := &Config{
-		Server: ServerConfig{
-			Port:         getEnv("APP_PORT", "8080"),
-			Host:         getEnv("APP_HOST", "0.0.0.0"),
-			ReadTimeout:  getEnvAsDuration("APP_READ_TIMEOUT", 15*time.Second),
-			WriteTimeout: getEnvAsDuration("APP_WRITE_TIMEOUT", 15*time.Second),
-			IdleTimeout:  getEnvAsDuration("APP_IDLE_TIMEOUT", 60*time.Second),
-		},
-		Database: DatabaseConfig{
-			Host:            getEnv("DB_HOST", "localhost"),
-			Port:            getEnvAsInt("DB_PORT", 5432),
-			Name:            getEnv("DB_NAME", "app_db"),
-			User:            getEnv("DB_USER", "app_user"),
-			Password:        getEnv("DB_PASSWORD", "app_password"),
-			SSLMode:         getEnv("DB_SSL_MODE", "disable"),
-			MaxOpenConns:    getEnvAsInt("DB_MAX_OPEN_CONNS", 25),
-			MaxIdleConns:    getEnvAsInt("DB_MAX_IDLE_CONNS", 25),
-			ConnMaxLifetime: getEnvAsDuration("DB_CONN_MAX_LIFETIME", 300*time.Second),
-		},
-		Redis: RedisConfig{
-			Host:     getEnv("REDIS_HOST", "localhost"),
-			Port:     getEnvAsInt("REDIS_PORT", 6379),
-			Password: getEnv("REDIS_PASSWORD", ""),
-			DB:       getEnvAsInt("REDIS_DB", 0),
-			PoolSize: getEnvAsInt("REDIS_POOL_SIZE", 10),
-		},
-		Logging: LoggingConfig{
-			Level:  getEnv("LOG_LEVEL", "info"),
-			Format: getEnv("LOG_FORMAT", "json"),
-			File:   getEnv("LOG_FILE", ""),
-		},
-		Security: SecurityConfig{
-			JWTSecret:  getEnv("JWT_SECRET", "your-secret-key"),
-			JWTExpiry:  getEnvAsDuration("JWT_EXPIRY", 24*time.Hour),
-			BCryptCost: getEnvAsInt("BCRYPT_COST", 12),
-			APIKey:     getEnv("API_KEY", ""),
+	cmd := &cobra.Command{
+		Use:   "sitemap-crawler",
+		Short: "A configurable sitemap crawling tool",
+		Long: `A sitemap crawling tool that can interpret common sitemap formats,
+including multi-stage and multi-file sitemaps. Features configurable request rates,
+parallel workers, custom headers, and cache verification mode.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return nil // We'll handle execution in main
 		},
 	}
 
-	return cfg, nil
-}
+	// Add flags
+	cmd.Flags().String("sitemap-url", "", "URL of the sitemap to crawl (required)")
+	cmd.Flags().Int("max-workers", 10, "Maximum number of parallel workers")
+	cmd.Flags().Int("request-rate", 100, "Maximum requests per second")
+	cmd.Flags().Duration("request-timeout", 30*time.Second, "Request timeout")
+	cmd.Flags().String("user-agent", "SitemapCrawler/1.0", "User agent string")
+	cmd.Flags().StringSlice("headers", []string{}, "Custom headers in format 'Key:Value'")
+	cmd.Flags().Bool("cache-verification-mode", false, "Enable cache verification mode")
+	cmd.Flags().String("cache-header", "X-Cache", "Header to check for cache status")
+	cmd.Flags().String("output-format", "text", "Output format (text, json, csv)")
+	cmd.Flags().Bool("quiet", false, "Suppress progress output")
+	cmd.Flags().Duration("progress-interval", 5*time.Second, "Progress report interval")
+	cmd.Flags().Bool("debug", false, "Enable debug logging")
 
-// getEnv gets an environment variable or returns a default value
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	// Mark required flags
+	if err := cmd.MarkFlagRequired("sitemap-url"); err != nil {
+		return nil, fmt.Errorf("failed to mark sitemap-url as required: %w", err)
 	}
-	return defaultValue
-}
 
-// getEnvAsInt gets an environment variable as an integer or returns a default value
-func getEnvAsInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
+	// Parse command line
+	if err := cmd.Execute(); err != nil {
+		return nil, fmt.Errorf("failed to parse command line: %w", err)
+	}
+
+	// Bind flags to viper
+	if err := viper.BindPFlag("sitemap-url", cmd.Flags().Lookup("sitemap-url")); err != nil {
+		return nil, fmt.Errorf("failed to bind sitemap-url flag: %w", err)
+	}
+	if err := viper.BindPFlag("max-workers", cmd.Flags().Lookup("max-workers")); err != nil {
+		return nil, fmt.Errorf("failed to bind max-workers flag: %w", err)
+	}
+	if err := viper.BindPFlag("request-rate", cmd.Flags().Lookup("request-rate")); err != nil {
+		return nil, fmt.Errorf("failed to bind request-rate flag: %w", err)
+	}
+	if err := viper.BindPFlag("request-timeout", cmd.Flags().Lookup("request-timeout")); err != nil {
+		return nil, fmt.Errorf("failed to bind request-timeout flag: %w", err)
+	}
+	if err := viper.BindPFlag("user-agent", cmd.Flags().Lookup("user-agent")); err != nil {
+		return nil, fmt.Errorf("failed to bind user-agent flag: %w", err)
+	}
+	if err := viper.BindPFlag("cache-verification-mode", cmd.Flags().Lookup("cache-verification-mode")); err != nil {
+		return nil, fmt.Errorf("failed to bind cache-verification-mode flag: %w", err)
+	}
+	if err := viper.BindPFlag("cache-header", cmd.Flags().Lookup("cache-header")); err != nil {
+		return nil, fmt.Errorf("failed to bind cache-header flag: %w", err)
+	}
+	if err := viper.BindPFlag("output-format", cmd.Flags().Lookup("output-format")); err != nil {
+		return nil, fmt.Errorf("failed to bind output-format flag: %w", err)
+	}
+	if err := viper.BindPFlag("quiet", cmd.Flags().Lookup("quiet")); err != nil {
+		return nil, fmt.Errorf("failed to bind quiet flag: %w", err)
+	}
+	if err := viper.BindPFlag("progress-interval", cmd.Flags().Lookup("progress-interval")); err != nil {
+		return nil, fmt.Errorf("failed to bind progress-interval flag: %w", err)
+	}
+	if err := viper.BindPFlag("debug", cmd.Flags().Lookup("debug")); err != nil {
+		return nil, fmt.Errorf("failed to bind debug flag: %w", err)
+	}
+
+	// Parse headers
+	headers := viper.GetStringSlice("headers")
+	headerMap := make(map[string]string)
+	for _, header := range headers {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) == 2 {
+			headerMap[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 		}
 	}
-	return defaultValue
-}
+	viper.Set("headers", headerMap)
 
-// getEnvAsDuration gets an environment variable as a duration or returns a default value
-func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
+	// Set environment variable prefix
+	viper.SetEnvPrefix("SITEMAP_CRAWLER")
+	viper.AutomaticEnv()
+
+	// Create config struct
+	var cfg Config
+	if err := viper.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
-	return defaultValue
+
+	// Validate configuration
+	if err := validateConfig(&cfg); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	return &cfg, nil
 }
 
-// String returns a string representation of the configuration
-func (c *Config) String() string {
-	return fmt.Sprintf("Config{Server:%s, Database:%s, Redis:%s, Logging:%s, Security:%s}",
-		c.Server.String(),
-		c.Database.String(),
-		c.Redis.String(),
-		c.Logging.String(),
-		c.Security.String())
-}
+// validateConfig validates the configuration values
+func validateConfig(cfg *Config) error {
+	if cfg.SitemapURL == "" {
+		return fmt.Errorf("sitemap URL is required")
+	}
 
-func (s ServerConfig) String() string {
-	return fmt.Sprintf("ServerConfig{Port:%s, Host:%s}", s.Port, s.Host)
-}
+	if cfg.MaxWorkers < 1 {
+		return fmt.Errorf("max workers must be at least 1")
+	}
 
-func (d DatabaseConfig) String() string {
-	return fmt.Sprintf("DatabaseConfig{Host:%s, Port:%d, Name:%s}", d.Host, d.Port, d.Name)
-}
+	if cfg.RequestRate < 1 {
+		return fmt.Errorf("request rate must be at least 1")
+	}
 
-func (r RedisConfig) String() string {
-	return fmt.Sprintf("RedisConfig{Host:%s, Port:%d}", r.Host, r.Port)
-}
+	if cfg.RequestTimeout < time.Second {
+		return fmt.Errorf("request timeout must be at least 1 second")
+	}
 
-func (l LoggingConfig) String() string {
-	return fmt.Sprintf("LoggingConfig{Level:%s, Format:%s}", l.Level, l.Format)
-}
+	if cfg.CacheVerificationMode && cfg.CacheHeader == "" {
+		return fmt.Errorf("cache header must be specified when cache verification mode is enabled")
+	}
 
-func (s SecurityConfig) String() string {
-	return fmt.Sprintf("SecurityConfig{JWTExpiry:%s, BCryptCost:%d}", s.JWTExpiry, s.BCryptCost)
+	validFormats := map[string]bool{"text": true, "json": true, "csv": true}
+	if !validFormats[cfg.OutputFormat] {
+		return fmt.Errorf("invalid output format: %s (valid: text, json, csv)", cfg.OutputFormat)
+	}
+
+	return nil
 }

@@ -86,4 +86,4 @@
 * Include correlation IDs for request tracing
 * Log at appropriate levels (debug, info, warn, error)
 * Implement health checks and metrics
-* Use context for request cancellation and timeouts 
+* Use context for request cancellation and timeouts

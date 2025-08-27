@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -8,57 +8,64 @@ repos:
       - id: check-added-large-files
       - id: check-merge-conflict
       - id: check-case-conflict
-      - id: check-docstring-first
       - id: check-json
-      - id: check-merge-conflict
       - id: check-toml
-      - id: check-yaml
-      - id: debug-statements
       - id: detect-private-key
-      - id: name-tests-test
-      - id: requirements-txt-fixer
-      - id: trailing-whitespace
 
-  - repo: https://github.com/dnephin/pre-commit-golang
-    rev: v0.5.1
+  - repo: local
     hooks:
       - id: go-fmt
-      - id: go-vet
+        name: go fmt
+        entry: go fmt ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+        always_run: true
+
       - id: go-imports
-      - id: golangci-lint
+        name: goimports
+        entry: goimports -w .
+        language: system
+        types: [go]
+        pass_filenames: false
+        always_run: true
+
       - id: go-unit-tests
+        name: go test
+        entry: go test ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+        always_run: true
+
       - id: go-build
+        name: go build
+        entry: go build ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+        always_run: true
+
       - id: go-mod-tidy
-      - id: go-cyclo
-        args: [--max-complexity=15]
-      - id: go-errcheck
-      - id: go-imports
-      - id: go-lint
-      - id: go-test
-      - id: go-vet
+        name: go mod tidy
+        entry: go mod tidy
+        language: system
+        types: [go]
+        pass_filenames: false
+        always_run: true
 
-  - repo: https://github.com/psf/black
-    rev: 23.12.1
-    hooks:
-      - id: black
-        language_version: python3
-        types: [python]
+      - id: golangci-lint
+        name: golangci-lint
+        entry: golangci-lint run
+        language: system
+        types: [go]
+        pass_filenames: false
+        always_run: true
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        types: [python]
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
-    hooks:
-      - id: mypy
-        additional_dependencies: [types-all]
-        types: [python]
-
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.1.11
-    hooks:
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+      - id: govulncheck
+        name: govulncheck
+        entry: govulncheck ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+        always_run: true

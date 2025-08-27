@@ -32,7 +32,7 @@ Use this template when creating releases for this project.
 ### 🚀 New Features
 - Feature description
 
-### 🐛 Bug Fixes  
+### 🐛 Bug Fixes
 - Bug fix description
 
 ### 📚 Documentation
@@ -73,7 +73,7 @@ docker pull ghcr.io/benvon/ai-code-template-go:v1.0.0
 This project follows [Semantic Versioning](https://semver.org/):
 
 - **MAJOR** version when you make incompatible API changes
-- **MINOR** version when you add functionality in a backwards compatible manner  
+- **MINOR** version when you add functionality in a backwards compatible manner
 - **PATCH** version when you make backwards compatible bug fixes
 
 ### Examples
