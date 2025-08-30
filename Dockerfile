@@ -1,6 +1,6 @@
 # Dockerfile for GoReleaser
 # GoReleaser automatically copies the binary into the build context
-FROM ubuntu:latest
+FROM ubuntu:noble
 
 # Build argument for binary name (passed by GoReleaser)
 ARG BINARY_NAME=sitemap-crawler
@@ -8,10 +8,8 @@ ARG BINARY_NAME=sitemap-crawler
 # Install ca-certificates for HTTPS requests
 RUN apt-get update && \
     apt-get install -y ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-
-# Create non-root user for security
-RUN groupadd -g 1001 appgroup && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -g 1001 appgroup && \
     useradd -u 1001 -g appgroup -m appuser
 
 WORKDIR /app

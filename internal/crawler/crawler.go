@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benvon/sitemap-crawler/internal/backoff"
 	"github.com/benvon/sitemap-crawler/internal/config"
 	"github.com/benvon/sitemap-crawler/internal/parser"
 	"github.com/benvon/sitemap-crawler/internal/stats"
@@ -16,20 +17,33 @@ import (
 
 // Crawler handles the crawling process
 type Crawler struct {
-	config *config.Config
-	logger *logrus.Logger
-	parser *parser.Parser
-	stats  *stats.Stats
-	client *http.Client
+	config         *config.Config
+	logger         *logrus.Logger
+	parser         *parser.Parser
+	stats          *stats.Stats
+	client         *http.Client
+	backoffManager *backoff.Manager
 }
 
 // New creates a new crawler instance
 func New(cfg *config.Config, logger *logrus.Logger) *Crawler {
+	// Create backoff manager
+	backoffManager := backoff.NewManager(logger, backoff.Config{
+		Enabled:                          cfg.BackoffEnabled,
+		InitialDelay:                     cfg.BackoffInitialDelay,
+		MaxDelay:                         cfg.BackoffMaxDelay,
+		Multiplier:                       cfg.BackoffMultiplier,
+		ResponseTimeDegradationThreshold: cfg.ResponseTimeDegradationThreshold,
+		ForbiddenErrorThreshold:          cfg.ForbiddenErrorThreshold,
+		ForbiddenErrorWindow:             cfg.ForbiddenErrorWindow,
+	})
+
 	return &Crawler{
-		config: cfg,
-		logger: logger,
-		parser: parser.NewParser(cfg.RequestTimeout),
-		stats:  stats.New(),
+		config:         cfg,
+		logger:         logger,
+		parser:         parser.NewParser(cfg.RequestTimeout),
+		stats:          stats.New(),
+		backoffManager: backoffManager,
 		client: &http.Client{
 			Timeout: cfg.RequestTimeout,
 		},
@@ -75,6 +89,13 @@ func (c *Crawler) Run() error {
 
 // runStandardCrawl runs the standard crawling process
 func (c *Crawler) runStandardCrawl(urls []string) error {
+	// Create cancellable context for handling 403 errors
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set the cancel function in the backoff manager
+	c.backoffManager.SetCancelFunc(cancel)
+
 	// Create rate limiter
 	limiter := rate.NewLimiter(rate.Limit(c.config.RequestRate), c.config.RequestRate)
 
@@ -86,14 +107,18 @@ func (c *Crawler) runStandardCrawl(urls []string) error {
 	var wg sync.WaitGroup
 	for i := 0; i < c.config.MaxWorkers; i++ {
 		wg.Add(1)
-		go c.worker(i, urlChan, resultChan, limiter, &wg)
+		go c.worker(ctx, i, urlChan, resultChan, limiter, &wg)
 	}
 
 	// Send URLs to workers
 	go func() {
 		defer close(urlChan)
 		for _, url := range urls {
-			urlChan <- url
+			select {
+			case urlChan <- url:
+			case <-ctx.Done():
+				return // Exit early if cancelled
+			}
 		}
 	}()
 
@@ -104,9 +129,6 @@ func (c *Crawler) runStandardCrawl(urls []string) error {
 	}()
 
 	// Start progress reporter
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	if !c.config.Quiet {
 		go c.startProgressReporter(ctx)
 	}
@@ -124,15 +146,27 @@ func (c *Crawler) runStandardCrawl(urls []string) error {
 func (c *Crawler) runWithCacheVerification(urls []string) error {
 	c.logger.Info("Running in cache verification mode")
 
+	// Create cancellable context for handling 403 errors
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set the cancel function in the backoff manager
+	c.backoffManager.SetCancelFunc(cancel)
+
 	// First pass: warm up cache
 	c.logger.Info("Phase 1: Warming up cache")
-	if err := c.warmUpCache(urls); err != nil {
+	if err := c.warmUpCache(ctx, urls); err != nil {
 		return fmt.Errorf("failed to warm up cache: %w", err)
+	}
+
+	// Check if cancelled during warm-up
+	if c.backoffManager.IsCancelled() {
+		return fmt.Errorf("crawl cancelled during cache warm-up")
 	}
 
 	// Second pass: verify cache
 	c.logger.Info("Phase 2: Verifying cache")
-	if err := c.verifyCache(urls); err != nil {
+	if err := c.verifyCache(ctx, urls); err != nil {
 		return fmt.Errorf("failed to verify cache: %w", err)
 	}
 
@@ -141,7 +175,7 @@ func (c *Crawler) runWithCacheVerification(urls []string) error {
 }
 
 // warmUpCache performs initial requests to warm up the cache
-func (c *Crawler) warmUpCache(urls []string) error {
+func (c *Crawler) warmUpCache(ctx context.Context, urls []string) error {
 	limiter := rate.NewLimiter(rate.Limit(c.config.RequestRate), c.config.RequestRate)
 
 	urlChan := make(chan string, len(urls))
@@ -150,13 +184,17 @@ func (c *Crawler) warmUpCache(urls []string) error {
 	var wg sync.WaitGroup
 	for i := 0; i < c.config.MaxWorkers; i++ {
 		wg.Add(1)
-		go c.worker(i, urlChan, resultChan, limiter, &wg)
+		go c.worker(ctx, i, urlChan, resultChan, limiter, &wg)
 	}
 
 	go func() {
 		defer close(urlChan)
 		for _, url := range urls {
-			urlChan <- url
+			select {
+			case urlChan <- url:
+			case <-ctx.Done():
+				return // Exit early if cancelled
+			}
 		}
 	}()
 
@@ -166,9 +204,6 @@ func (c *Crawler) warmUpCache(urls []string) error {
 	}()
 
 	// Start progress reporter for warm-up phase
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	if !c.config.Quiet {
 		go c.startProgressReporter(ctx)
 	}
@@ -181,7 +216,7 @@ func (c *Crawler) warmUpCache(urls []string) error {
 }
 
 // verifyCache performs second requests to check cache status
-func (c *Crawler) verifyCache(urls []string) error {
+func (c *Crawler) verifyCache(ctx context.Context, urls []string) error {
 	limiter := rate.NewLimiter(rate.Limit(c.config.RequestRate), c.config.RequestRate)
 
 	urlChan := make(chan string, len(urls))
@@ -190,13 +225,17 @@ func (c *Crawler) verifyCache(urls []string) error {
 	var wg sync.WaitGroup
 	for i := 0; i < c.config.MaxWorkers; i++ {
 		wg.Add(1)
-		go c.worker(i, urlChan, resultChan, limiter, &wg)
+		go c.worker(ctx, i, urlChan, resultChan, limiter, &wg)
 	}
 
 	go func() {
 		defer close(urlChan)
 		for _, url := range urls {
-			urlChan <- url
+			select {
+			case urlChan <- url:
+			case <-ctx.Done():
+				return // Exit early if cancelled
+			}
 		}
 	}()
 
@@ -206,9 +245,6 @@ func (c *Crawler) verifyCache(urls []string) error {
 	}()
 
 	// Start progress reporter for cache verification phase
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	if !c.config.Quiet {
 		go c.startProgressReporter(ctx)
 	}
@@ -221,19 +257,71 @@ func (c *Crawler) verifyCache(urls []string) error {
 }
 
 // worker processes URLs from the channel
-func (c *Crawler) worker(id int, urlChan <-chan string, resultChan chan<- *stats.Result, limiter *rate.Limiter, wg *sync.WaitGroup) {
+func (c *Crawler) worker(ctx context.Context, id int, urlChan <-chan string, resultChan chan<- *stats.Result, limiter *rate.Limiter, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	for url := range urlChan {
-		// Wait for rate limiter
-		if err := limiter.Wait(context.Background()); err != nil {
-			c.logger.WithError(err).Error("Rate limiter error")
-			continue
-		}
+	for {
+		select {
+		case url, ok := <-urlChan:
+			if !ok {
+				return // Channel closed
+			}
 
-		// Crawl URL
-		result := c.crawlURL(url)
-		resultChan <- result
+			// Check if we should continue
+			if c.backoffManager.IsCancelled() {
+				c.logger.Warn("Worker stopping due to crawl cancellation")
+				return
+			}
+
+			// Wait for rate limiter
+			if err := limiter.Wait(ctx); err != nil {
+				if ctx.Err() != nil {
+					c.logger.Debug("Worker stopping due to context cancellation")
+					return
+				}
+				c.logger.WithError(err).Error("Rate limiter error")
+				continue
+			}
+
+			// Crawl URL
+			result := c.crawlURL(url)
+
+			// Check for backoff after getting the result
+			shouldBackoff, backoffDelay, err := c.backoffManager.ShouldBackoff(result.StatusCode, result.Duration)
+			if err != nil {
+				c.logger.WithError(err).Error("Backoff manager error, stopping worker")
+				return
+			}
+
+			// Apply backoff if needed
+			if shouldBackoff && backoffDelay > 0 {
+				c.logger.WithFields(logrus.Fields{
+					"worker_id": id,
+					"delay":     backoffDelay,
+					"url":       url,
+					"status":    result.StatusCode,
+				}).Info("Applying backoff delay")
+
+				select {
+				case <-time.After(backoffDelay):
+					// Backoff completed
+				case <-ctx.Done():
+					// Context cancelled during backoff
+					return
+				}
+			}
+
+			// Send result (non-blocking to prevent deadlock if context is cancelled)
+			select {
+			case resultChan <- result:
+			case <-ctx.Done():
+				return
+			}
+
+		case <-ctx.Done():
+			c.logger.WithField("worker_id", id).Debug("Worker stopping due to context cancellation")
+			return
+		}
 	}
 }
 
@@ -331,8 +419,11 @@ func (c *Crawler) printProgress() {
 	etaFormatted := c.formatDuration(progress.EstimatedTimeLeft)
 	avgDurationFormatted := c.formatDuration(progress.AverageDuration)
 
+	// Get backoff stats
+	backoffStats := c.backoffManager.GetStats()
+
 	// Create a human-readable progress message
-	message := fmt.Sprintf("Progress: %d/%d (%.1f%%) | Success Rate: %.1f%% | Speed: %.1f req/s | Elapsed: %s | ETA: %s | Avg Response: %s",
+	baseMessage := fmt.Sprintf("Progress: %d/%d (%.1f%%) | Success Rate: %.1f%% | Speed: %.1f req/s | Elapsed: %s | ETA: %s | Avg Response: %s",
 		progress.Processed,
 		progress.Total,
 		progress.Percentage,
@@ -343,7 +434,19 @@ func (c *Crawler) printProgress() {
 		avgDurationFormatted,
 	)
 
-	c.logger.Info(message)
+	// Add backoff information if active
+	if backoffActive, ok := backoffStats["backoff_active"].(bool); ok && backoffActive {
+		if currentDelay, ok := backoffStats["current_delay"].(time.Duration); ok {
+			baseMessage += fmt.Sprintf(" | BACKOFF: %s", c.formatDuration(currentDelay))
+		}
+	}
+
+	// Add forbidden error count if any
+	if forbiddenCount, ok := backoffStats["forbidden_errors_count"].(int); ok && forbiddenCount > 0 {
+		baseMessage += fmt.Sprintf(" | 403 Errors: %d", forbiddenCount)
+	}
+
+	c.logger.Info(baseMessage)
 }
 
 // formatDuration formats a duration for human-readable display
@@ -370,8 +473,9 @@ func (c *Crawler) formatDuration(d time.Duration) string {
 // printFinalStats prints final statistics
 func (c *Crawler) printFinalStats() {
 	stats := c.stats.GetFinalStats()
+	backoffStats := c.backoffManager.GetStats()
 
-	c.logger.WithFields(logrus.Fields{
+	fields := logrus.Fields{
 		"total_processed": stats.TotalProcessed,
 		"total_success":   stats.TotalSuccess,
 		"total_errors":    stats.TotalErrors,
@@ -380,7 +484,25 @@ func (c *Crawler) printFinalStats() {
 		"min_duration":    stats.MinDuration,
 		"max_duration":    stats.MaxDuration,
 		"total_duration":  stats.TotalDuration,
-	}).Info("Crawling completed")
+	}
+
+	// Add backoff information to final stats
+	if backoffActive, ok := backoffStats["backoff_active"].(bool); ok && backoffActive {
+		fields["backoff_was_active"] = true
+		if finalDelay, ok := backoffStats["current_delay"].(time.Duration); ok {
+			fields["final_backoff_delay"] = finalDelay
+		}
+	}
+
+	if forbiddenCount, ok := backoffStats["forbidden_errors_count"].(int); ok && forbiddenCount > 0 {
+		fields["forbidden_errors_encountered"] = forbiddenCount
+	}
+
+	if cancelled, ok := backoffStats["cancelled"].(bool); ok && cancelled {
+		fields["crawl_cancelled"] = true
+	}
+
+	c.logger.WithFields(fields).Info("Crawling completed")
 }
 
 // printCacheStats prints cache verification statistics
