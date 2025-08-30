@@ -12,7 +12,9 @@ A high-performance, configurable sitemap crawling tool written in Go. This tool 
 - ✅ **Progress Tracking**: Real-time progress updates with percentage completion
 - ✅ **Performance Metrics**: Comprehensive statistics including success rates and timing
 - ✅ **Multiple Output Formats**: Text, JSON, and CSV output options
-- ✅ **Rate Limiting**: Built-in rate limiting to be respectful to servers
+- ✅ **Rate Limiting**: Built-in global rate limiting to be respectful to servers
+- ✅ **Intelligent Backoff**: Automatic backoff on server errors and response time degradation
+- ✅ **Protection Mechanisms**: Emergency cancellation on excessive 403 errors
 - ✅ **Error Handling**: Robust error handling with detailed logging
 
 ## Installation
@@ -92,7 +94,7 @@ go install github.com/benvon/sitemap-crawler/cmd/crawler@latest
 |--------|-------------|---------|----------|
 | `--sitemap-url` | URL of the sitemap to crawl | - | ✅ Yes |
 | `--max-workers` | Maximum number of parallel workers | 10 | No |
-| `--request-rate` | Maximum requests per second | 100 | No |
+| `--request-rate` | Maximum requests per second (total across all workers) | 100 | No |
 | `--request-timeout` | Request timeout | 30s | No |
 | `--user-agent` | User agent string | SitemapCrawler/1.0 | No |
 | `--headers` | Custom headers (format: Key:Value) | - | No |
@@ -101,6 +103,13 @@ go install github.com/benvon/sitemap-crawler/cmd/crawler@latest
 | `--output-format` | Output format (text, json, csv) | text | No |
 | `--quiet` | Suppress progress output | false | No |
 | `--debug` | Enable debug logging | false | No |
+| `--backoff-enabled` | Enable backoff on server errors and response degradation | true | No |
+| `--backoff-initial-delay` | Initial backoff delay | 1s | No |
+| `--backoff-max-delay` | Maximum backoff delay | 30s | No |
+| `--backoff-multiplier` | Backoff delay multiplier | 2.0 | No |
+| `--response-time-degradation-threshold` | Response time degradation threshold (0.5 = 50% slower) | 0.5 | No |
+| `--forbidden-error-threshold` | Number of 403 errors within window to cancel crawl | 5 | No |
+| `--forbidden-error-window` | Time window for 403 error tracking | 5s | No |
 
 ### Environment Variables
 
@@ -237,6 +246,86 @@ https://example.com/page3
 - **Timeout Settings**: Set appropriate timeouts for your network conditions
 - **Memory Usage**: For very large sitemaps, consider processing in batches
 
+### Rate Limiting Architecture
+
+The crawler implements global rate limiting across all workers to ensure respectful crawling behavior. The `--request-rate` parameter caps the **total** request rate, not per-worker rate:
+
+```mermaid
+graph TD
+    A["CLI: --request-rate 100"] --> B["rate.NewLimiter(100, 100)"]
+    B --> C["Single Shared Rate Limiter"]
+
+    C --> D["Worker 1"]
+    C --> E["Worker 2"]
+    C --> F["Worker 3"]
+    C --> G["Worker N"]
+
+    D --> H["limiter.Wait()"]
+    E --> I["limiter.Wait()"]
+    F --> J["limiter.Wait()"]
+    G --> K["limiter.Wait()"]
+
+    H --> L["Token Available?"]
+    I --> L
+    J --> L
+    K --> L
+
+    L -->|Yes| M["Make HTTP Request"]
+    L -->|No| N["Block Until Token Available"]
+    N --> M
+
+    M --> O["Total Rate: ≤ 100 req/s"]
+
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#fff3e0
+    style O fill:#e8f5e8
+    style L fill:#fff9c4
+```
+
+This design ensures that:
+
+- Multiple workers coordinate through a shared token bucket
+- Total request rate never exceeds the configured limit
+- The crawler remains respectful to target servers
+- Cache warming operations don't overwhelm uncached sites
+
+### Backoff and Protection Features
+
+The crawler includes intelligent backoff mechanisms to protect target sites and prevent overwhelming servers:
+
+#### Server Error Backoff
+
+- Automatically backs off when receiving 50x server errors (500, 502, 503, etc.)
+- Uses exponential backoff with configurable delays and multipliers
+- Resets backoff when server health improves
+
+#### Response Time Monitoring
+
+- Continuously monitors response times to establish baseline performance
+- Triggers backoff when response times degrade by a configurable threshold (default: 50%)
+- Helps detect when a site is under stress
+
+#### Emergency Cancellation
+
+- Monitors 403 Forbidden errors within a sliding time window
+- Automatically cancels the entire crawl if too many 403s are received (default: 5 within 5 seconds)
+- Prevents triggering security mechanisms or IP blocking
+
+#### Example with Backoff Configuration
+
+```bash
+./sitemap-crawler \
+  --sitemap-url https://example.com/sitemap.xml \
+  --backoff-enabled \
+  --backoff-initial-delay 2s \
+  --backoff-max-delay 60s \
+  --backoff-multiplier 1.5 \
+  --response-time-degradation-threshold 0.3 \
+  --forbidden-error-threshold 3 \
+  --forbidden-error-window 10s
+```
+
 ## Cache Verification Mode
 
 Cache verification mode performs a two-phase crawl:
@@ -245,6 +334,7 @@ Cache verification mode performs a two-phase crawl:
 2. **Verification Phase**: Second requests to measure cache hit/miss rates
 
 This is useful for:
+
 - CDN performance analysis
 - Cache effectiveness measurement
 - Performance optimization validation
@@ -252,12 +342,15 @@ This is useful for:
 ## Output Formats
 
 ### Text Format (Default)
+
 Human-readable output with progress updates and final statistics.
 
 ### JSON Format
+
 Structured data suitable for programmatic processing and integration.
 
 ### CSV Format
+
 Tabular data for spreadsheet analysis and reporting.
 
 ## Development

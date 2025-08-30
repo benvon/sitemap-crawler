@@ -18,6 +18,7 @@
 * Follow Go naming conventions (e.g., `ID` not `Id`, `URL` not `Url`)
 * Use meaningful variable names that describe intent
 * Keep functions small and focused (ideally under 20 lines)
+* Don't ignore linter errors. The agent is not allowed to add linter ignore statements.
 
 ## Testing
 
@@ -45,11 +46,11 @@
 ## Project Structure
 
 * Use standard Go project layout:
-  - `cmd/` for main applications
-  - `internal/` for private application code
-  - `pkg/` for public libraries
-  - `api/` for API definitions
-  - `docs/` for documentation
+  * `cmd/` for main applications
+  * `internal/` for private application code
+  * `pkg/` for public libraries
+  * `api/` for API definitions
+  * `docs/` for documentation
 * Keep packages focused and cohesive
 * Avoid circular dependencies
 
