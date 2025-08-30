@@ -18,7 +18,8 @@
 * Follow Go naming conventions (e.g., `ID` not `Id`, `URL` not `Url`)
 * Use meaningful variable names that describe intent
 * Keep functions small and focused (ideally under 20 lines)
-* Don't ignore linter errors. The agent is not allowed to add linter ignore statements.
+* Don't ignore linter errors in source code files.
+* The agent is not allowed to add linter ignore statements.
 
 ## Testing
 

@@ -28,16 +28,15 @@ type Crawler struct {
 // New creates a new crawler instance
 func New(cfg *config.Config, logger *logrus.Logger) *Crawler {
 	// Create backoff manager
-	backoffManager := backoff.NewManager(
-		logger,
-		cfg.BackoffEnabled,
-		cfg.BackoffInitialDelay,
-		cfg.BackoffMaxDelay,
-		cfg.BackoffMultiplier,
-		cfg.ResponseTimeDegradationThreshold,
-		cfg.ForbiddenErrorThreshold,
-		cfg.ForbiddenErrorWindow,
-	)
+	backoffManager := backoff.NewManager(logger, backoff.Config{
+		Enabled:                          cfg.BackoffEnabled,
+		InitialDelay:                     cfg.BackoffInitialDelay,
+		MaxDelay:                         cfg.BackoffMaxDelay,
+		Multiplier:                       cfg.BackoffMultiplier,
+		ResponseTimeDegradationThreshold: cfg.ResponseTimeDegradationThreshold,
+		ForbiddenErrorThreshold:          cfg.ForbiddenErrorThreshold,
+		ForbiddenErrorWindow:             cfg.ForbiddenErrorWindow,
+	})
 
 	return &Crawler{
 		config:         cfg,

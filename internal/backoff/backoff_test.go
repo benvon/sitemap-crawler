@@ -9,22 +9,74 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func getTestConfig() Config {
+	return Config{
+		Enabled:                          true,
+		InitialDelay:                     1 * time.Second,
+		MaxDelay:                         30 * time.Second,
+		Multiplier:                       2.0,
+		ResponseTimeDegradationThreshold: 0.5,
+		ForbiddenErrorThreshold:          5,
+		ForbiddenErrorWindow:             5 * time.Second,
+	}
+}
+
+func getDisabledTestConfig() Config {
+	config := getTestConfig()
+	config.Enabled = false
+	return config
+}
+
+func getLowMaxDelayTestConfig() Config {
+	config := getTestConfig()
+	config.MaxDelay = 5 * time.Second // Low max delay for testing
+	return config
+}
+
+func getLowThresholdTestConfig() Config {
+	config := getTestConfig()
+	config.ForbiddenErrorThreshold = 3 // Low threshold for testing
+	return config
+}
+
+func getShortWindowTestConfig() Config {
+	config := getTestConfig()
+	config.ForbiddenErrorThreshold = 3                   // Low threshold for testing
+	config.ForbiddenErrorWindow = 100 * time.Millisecond // Very short window for testing
+	return config
+}
+
+func getShortWindow2TestConfig() Config {
+	config := getTestConfig()
+	config.ForbiddenErrorWindow = 100 * time.Millisecond // Short window
+	return config
+}
+
+func getVeryLowThresholdTestConfig() Config {
+	config := getTestConfig()
+	config.ForbiddenErrorThreshold = 1 // Low threshold for easy testing
+	return config
+}
+
+func getHighThresholdTestConfig() Config {
+	config := getTestConfig()
+	config.ResponseTimeDegradationThreshold = 0.8 // Higher threshold (80%) to make testing easier
+	return config
+}
+
+func getHighForbiddenThresholdTestConfig() Config {
+	config := getTestConfig()
+	config.ForbiddenErrorThreshold = 10
+	return config
+}
+
 func TestNewManager(t *testing.T) {
 	t.Parallel()
 
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel) // Suppress logs during tests
 
-	manager := NewManager(
-		logger,
-		true,           // enabled
-		1*time.Second,  // initialDelay
-		30*time.Second, // maxDelay
-		2.0,            // multiplier
-		0.5,            // responseTimeDegradationThreshold
-		5,              // forbiddenErrorThreshold
-		5*time.Second,  // forbiddenErrorWindow
-	)
+	manager := NewManager(logger, getTestConfig())
 
 	assert.NotNil(t, manager)
 	assert.True(t, manager.enabled)
@@ -42,16 +94,7 @@ func TestShouldBackoff_ServerError(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		5,
-		5*time.Second,
-	)
+	manager := NewManager(logger, getTestConfig())
 
 	// Test 500 error triggers backoff
 	shouldBackoff, delay, err := manager.ShouldBackoff(500, 100*time.Millisecond)
@@ -79,16 +122,7 @@ func TestShouldBackoff_MaxDelay(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		5*time.Second, // Low max delay for testing
-		2.0,
-		0.5,
-		5,
-		5*time.Second,
-	)
+	manager := NewManager(logger, getLowMaxDelayTestConfig())
 
 	// Trigger multiple server errors
 	_, _, _ = manager.ShouldBackoff(500, 100*time.Millisecond)                    // 1s
@@ -107,16 +141,7 @@ func TestShouldBackoff_ResetOnSuccess(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		5,
-		5*time.Second,
-	)
+	manager := NewManager(logger, getTestConfig())
 
 	// Trigger backoff
 	shouldBackoff, _, err := manager.ShouldBackoff(500, 100*time.Millisecond)
@@ -137,16 +162,7 @@ func TestShouldBackoff_ForbiddenErrors(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		3, // Low threshold for testing
-		5*time.Second,
-	)
+	manager := NewManager(logger, getLowThresholdTestConfig())
 
 	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -174,16 +190,7 @@ func TestShouldBackoff_ForbiddenErrorsWindow(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		3,
-		100*time.Millisecond, // Very short window for testing
-	)
+	manager := NewManager(logger, getShortWindowTestConfig())
 
 	// Add two 403 errors
 	_, _, err := manager.ShouldBackoff(403, 100*time.Millisecond)
@@ -207,16 +214,7 @@ func TestShouldBackoff_ResponseTimeDegradation(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5, // 50% degradation threshold
-		5,
-		5*time.Second,
-	)
+	manager := NewManager(logger, getTestConfig())
 
 	// Establish baseline with fast responses
 	for i := 0; i < 15; i++ {
@@ -249,16 +247,7 @@ func TestShouldBackoff_Disabled(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		false, // disabled
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		5,
-		5*time.Second,
-	)
+	manager := NewManager(logger, getDisabledTestConfig())
 
 	// Server error should not trigger backoff when disabled
 	shouldBackoff, delay, err := manager.ShouldBackoff(500, 100*time.Millisecond)
@@ -274,16 +263,7 @@ func TestGetStats(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		5,
-		5*time.Second,
-	)
+	manager := NewManager(logger, getTestConfig())
 
 	stats := manager.GetStats()
 	assert.NotNil(t, stats)
@@ -306,16 +286,7 @@ func TestCleanOldForbiddenErrors(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		5,
-		100*time.Millisecond, // Short window
-	)
+	manager := NewManager(logger, getShortWindow2TestConfig())
 
 	// Add some 403 errors
 	_, _, _ = manager.ShouldBackoff(403, 100*time.Millisecond)
@@ -339,16 +310,7 @@ func TestSetCancelFunc(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		5,
-		5*time.Second,
-	)
+	manager := NewManager(logger, getTestConfig())
 
 	// Initially no cancel function
 	assert.Nil(t, manager.cancelFunc)
@@ -367,16 +329,7 @@ func TestShouldBackoff_EdgeCases(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		5,
-		5*time.Second,
-	)
+	manager := NewManager(logger, getTestConfig())
 
 	// Test different status codes that should not trigger backoff
 	testCases := []int{100, 200, 201, 300, 301, 400, 401, 404, 499}
@@ -409,16 +362,7 @@ func TestShouldBackoff_AlreadyCancelled(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		1, // Low threshold for easy testing
-		5*time.Second,
-	)
+	manager := NewManager(logger, getVeryLowThresholdTestConfig())
 
 	// Trigger cancellation
 	_, _, _ = manager.ShouldBackoff(403, 100*time.Millisecond)
@@ -438,16 +382,7 @@ func TestResponseTimeTracking_EdgeCases(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.8, // Higher threshold (80%) to make testing easier
-		5,
-		5*time.Second,
-	)
+	manager := NewManager(logger, getHighThresholdTestConfig())
 
 	// Test with zero duration responses
 	for i := 0; i < 15; i++ {
@@ -476,16 +411,7 @@ func TestResetBackoff_WhenNotActive(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		5,
-		5*time.Second,
-	)
+	manager := NewManager(logger, getTestConfig())
 
 	// Call resetBackoff when backoff is not active (should be no-op)
 	initialDelay := manager.currentDelay
@@ -500,16 +426,7 @@ func TestConcurrentAccess(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	manager := NewManager(
-		logger,
-		true,
-		1*time.Second,
-		30*time.Second,
-		2.0,
-		0.5,
-		10,
-		5*time.Second,
-	)
+	manager := NewManager(logger, getHighForbiddenThresholdTestConfig())
 
 	// Test concurrent access to ShouldBackoff
 	done := make(chan bool, 2)

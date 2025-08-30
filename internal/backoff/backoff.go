@@ -16,6 +16,17 @@ type ErrorEvent struct {
 	Duration   time.Duration
 }
 
+// Config holds configuration parameters for the backoff manager
+type Config struct {
+	Enabled                          bool
+	InitialDelay                     time.Duration
+	MaxDelay                         time.Duration
+	Multiplier                       float64
+	ResponseTimeDegradationThreshold float64
+	ForbiddenErrorThreshold          int
+	ForbiddenErrorWindow             time.Duration
+}
+
 // Manager handles backoff logic and error tracking
 type Manager struct {
 	mu     sync.RWMutex
@@ -42,24 +53,17 @@ type Manager struct {
 }
 
 // NewManager creates a new backoff manager
-func NewManager(
-	logger *logrus.Logger,
-	enabled bool,
-	initialDelay, maxDelay time.Duration,
-	multiplier, responseTimeDegradationThreshold float64,
-	forbiddenErrorThreshold int,
-	forbiddenErrorWindow time.Duration,
-) *Manager {
+func NewManager(logger *logrus.Logger, config Config) *Manager {
 	return &Manager{
 		logger:                           logger,
-		enabled:                          enabled,
-		initialDelay:                     initialDelay,
-		maxDelay:                         maxDelay,
-		multiplier:                       multiplier,
-		responseTimeDegradationThreshold: responseTimeDegradationThreshold,
-		forbiddenErrorThreshold:          forbiddenErrorThreshold,
-		forbiddenErrorWindow:             forbiddenErrorWindow,
-		currentDelay:                     initialDelay,
+		enabled:                          config.Enabled,
+		initialDelay:                     config.InitialDelay,
+		maxDelay:                         config.MaxDelay,
+		multiplier:                       config.Multiplier,
+		responseTimeDegradationThreshold: config.ResponseTimeDegradationThreshold,
+		forbiddenErrorThreshold:          config.ForbiddenErrorThreshold,
+		forbiddenErrorWindow:             config.ForbiddenErrorWindow,
+		currentDelay:                     config.InitialDelay,
 		responseTimeWindow:               20, // Track last 20 response times for baseline
 		forbiddenErrors:                  make([]time.Time, 0),
 	}

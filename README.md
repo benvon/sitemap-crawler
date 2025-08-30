@@ -131,7 +131,8 @@ export SITEMAP_CRAWLER_REQUEST_TIMEOUT=45s
 ```
 
 Output:
-```
+
+```shell
 INFO Starting sitemap crawler
 INFO Configuration loaded sitemap_url=https://example.com/sitemap.xml max_workers=10 request_rate=100 cache_mode=false
 INFO Sitemap parsed successfully total_urls=150
@@ -154,7 +155,8 @@ INFO Crawling completed total_processed=148 total_success=139 total_errors=9 suc
 ```
 
 Output:
-```
+
+```shell
 INFO Starting sitemap crawler
 INFO Configuration loaded sitemap_url=https://example.com/sitemap.xml max_workers=5 request_rate=30 cache_mode=true
 INFO Sitemap parsed successfully total_urls=150
@@ -179,6 +181,7 @@ INFO Cache verification completed cache_hits=45 cache_misses=103 cache_hit_rate=
 ```
 
 Output (JSON):
+
 ```json
 {
   "timestamp": "2024-01-15T10:30:00Z",
@@ -233,7 +236,7 @@ Output (JSON):
 
 ### Plain Text Sitemap
 
-```
+```shell
 https://example.com/page1
 https://example.com/page2
 https://example.com/page3
@@ -357,7 +360,7 @@ Tabular data for spreadsheet analysis and reporting.
 
 ### Project Structure
 
-```
+```shell
 sitemap-crawler/
 ├── cmd/crawler/          # Main application entry point
 ├── internal/             # Private application code
