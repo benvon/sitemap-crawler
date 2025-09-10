@@ -10,11 +10,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # Use 'stable' for latest stable, and specify the last 2 versions explicitly
-        # Update these only when new major Go versions are released (every 6 months)
-        go-version: ['1.22', '1.23', 'stable']
 
     steps:
     - name: Checkout code
@@ -23,7 +18,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ matrix.go-version }}
+        go-version-file: go.mod
 
     - name: Cache Go modules
       uses: actions/cache@v4
@@ -60,7 +55,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version-file: go.mod
 
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v8
@@ -79,7 +74,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24'
+        go-version-file: go.mod
 
     - name: Run Security Scanner
       run: |
@@ -102,7 +97,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version-file: go.mod
 
     - name: Install govulncheck
       run: go install golang.org/x/vuln/cmd/govulncheck@latest
@@ -129,7 +124,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version-file: go.mod
 
     - name: Build
       env:
@@ -148,7 +143,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version-file: go.mod
 
     - name: Check if go mod tidy is needed
       run: |
