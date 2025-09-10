@@ -1,6 +1,6 @@
 module github.com/benvon/sitemap-crawler
 
-go 1.24.0
+go 1.24.4
 
 require (
 	github.com/sirupsen/logrus v1.9.3
