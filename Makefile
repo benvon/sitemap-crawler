@@ -159,7 +159,7 @@ update-tool-versions:
 ## pin-tool-version: Pin a specific tool version (usage: make pin-tool-version TOOL=golangci-lint VERSION=2.3.0)
 pin-tool-version:
 	@if [ -z "$(TOOL)" ] || [ -z "$(VERSION)" ]; then \
-		echo "Error: Error: Usage: make pin-tool-version TOOL=toolname VERSION=version"; \
+		echo "Error: Usage: make pin-tool-version TOOL=toolname VERSION=version"; \
 		echo "Example: make pin-tool-version TOOL=golangci-lint VERSION=2.3.0"; \
 		exit 1; \
 	fi
