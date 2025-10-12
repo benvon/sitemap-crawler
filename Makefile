@@ -181,7 +181,7 @@ unpin-tool-version:
 	fi
 	@echo "Unpinning $(TOOL)..."
 	@if [ ! -f .tool-versions ]; then \
-		echo "Error: Error: .tool-versions file not found"; \
+		echo "Error: .tool-versions file not found"; \
 		exit 1; \
 	fi
 	@sed -i.bak "s/^$(TOOL) .* #pinned/$(TOOL) $$(asdf latest $(TOOL) 2>/dev/null || echo 'unknown')/" .tool-versions
