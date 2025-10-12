@@ -175,7 +175,7 @@ pin-tool-version:
 ## unpin-tool-version: Unpin a specific tool version (usage: make unpin-tool-version TOOL=golangci-lint)
 unpin-tool-version:
 	@if [ -z "$(TOOL)" ]; then \
-		echo "Error: Error: Usage: make unpin-tool-version TOOL=toolname"; \
+		echo "Error: Usage: make unpin-tool-version TOOL=toolname"; \
 		echo "Example: make unpin-tool-version TOOL=golangci-lint"; \
 		exit 1; \
 	fi
