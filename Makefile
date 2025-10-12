@@ -210,7 +210,7 @@ lint: check-golangci-lint-version
 check-golangci-lint-version:
 	@echo "Checking golangci-lint version..."
 	@if ! golangci-lint version | grep -q "version 2"; then \
-		echo "Error: Error: golangci-lint version 2.x required. Current version:"; \
+		echo "Error: golangci-lint version 2.x required. Current version:"; \
 		golangci-lint version; \
 		echo "Please run: asdf reshim golangci-lint"; \
 		exit 1; \
