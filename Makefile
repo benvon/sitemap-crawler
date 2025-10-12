@@ -234,7 +234,7 @@ mod-tidy-check:
 	@echo "Checking if go mod tidy is needed..."
 	@go mod tidy
 	@git diff --exit-code go.mod go.sum || { \
-		echo "Error: Error: go.mod or go.sum is not tidy. Please run 'go mod tidy' and commit the changes."; \
+		echo "Error: go.mod or go.sum is not tidy. Please run 'go mod tidy' and commit the changes."; \
 		exit 1; \
 	}
 	@echo "go.mod and go.sum are tidy!"
