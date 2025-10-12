@@ -128,7 +128,7 @@ verify-tools:
 update-tool-versions:
 	@echo "Updating .tool-versions with latest versions..."
 	@if [ ! -f .tool-versions ]; then \
-		echo "Error: Error: .tool-versions file not found"; \
+		echo "Error: .tool-versions file not found"; \
 		exit 1; \
 	fi
 	@cp .tool-versions .tool-versions.backup
