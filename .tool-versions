@@ -1,5 +1,5 @@
 golangci-lint 2.6.1
-golang 1.25.4
+golang 1.25.9
 gosec 2.22.10
 pre-commit 3.3.3
 goimports 0.38.0
