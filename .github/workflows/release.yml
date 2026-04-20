@@ -11,4 +11,4 @@ permissions:
 
 jobs:
   release:
-    uses: benvon/reusable-workflows/.github/workflows/go-goreleaser-release.yml@130a938eed408977d8c3159327f13306f422b1eb
+    uses: benvon/reusable-workflows/.github/workflows/go-goreleaser-release.yml@f70796de0a6527dbed267a64835c3cc81b8144e0
