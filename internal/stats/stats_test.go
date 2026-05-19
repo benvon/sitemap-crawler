@@ -172,6 +172,7 @@ func TestCacheVerification(t *testing.T) {
 
 	s := New()
 	s.SetTotalURLs(4)
+	s.StartWarmUp()
 
 	// Add warm-up results
 	s.AddWarmUpResult(&Result{
@@ -186,8 +187,10 @@ func TestCacheVerification(t *testing.T) {
 		Duration:    200 * time.Millisecond,
 		CacheStatus: "",
 	})
+	s.FinishWarmUp()
 
 	// Add cache verification results
+	s.StartVerify()
 	s.AddCacheResult(&Result{
 		URL:         "https://example.com/1",
 		Success:     true,
@@ -200,6 +203,7 @@ func TestCacheVerification(t *testing.T) {
 		Duration:    150 * time.Millisecond,
 		CacheStatus: "MISS",
 	})
+	s.FinishVerify()
 
 	cacheStats := s.GetCacheStats()
 
@@ -213,6 +217,19 @@ func TestCacheVerification(t *testing.T) {
 
 	if cacheStats.CacheHitRate != 50.0 {
 		t.Errorf("Expected CacheHitRate 50.0, got %.1f", cacheStats.CacheHitRate)
+	}
+
+	if cacheStats.WarmUpTime <= 0 {
+		t.Errorf("Expected positive warm-up time, got %v", cacheStats.WarmUpTime)
+	}
+
+	if cacheStats.VerifyTime <= 0 {
+		t.Errorf("Expected positive verify time, got %v", cacheStats.VerifyTime)
+	}
+
+	finalStats := s.GetFinalStats()
+	if finalStats.TotalProcessed != 4 {
+		t.Errorf("Expected TotalProcessed 4, got %d", finalStats.TotalProcessed)
 	}
 }
 

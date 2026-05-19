@@ -3,6 +3,7 @@ package crawler
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -14,6 +15,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 )
+
+const maxResponseDrainBytes = 512 * 1024
 
 // Crawler handles the crawling process
 type Crawler struct {
@@ -27,6 +30,9 @@ type Crawler struct {
 
 // New creates a new crawler instance
 func New(cfg *config.Config, logger *logrus.Logger) *Crawler {
+	sitemapParser := parser.NewParser(cfg.RequestTimeout)
+	sitemapParser.SetUserAgent(cfg.UserAgent)
+
 	// Create backoff manager
 	backoffManager := backoff.NewManager(logger, backoff.Config{
 		Enabled:                          cfg.BackoffEnabled,
@@ -41,7 +47,7 @@ func New(cfg *config.Config, logger *logrus.Logger) *Crawler {
 	return &Crawler{
 		config:         cfg,
 		logger:         logger,
-		parser:         parser.NewParser(cfg.RequestTimeout),
+		parser:         sitemapParser,
 		stats:          stats.New(),
 		backoffManager: backoffManager,
 		client: &http.Client{
@@ -76,14 +82,13 @@ func (c *Crawler) Run() error {
 		return fmt.Errorf("no valid URLs found in sitemap")
 	}
 
-	// Initialize stats
-	c.stats.SetTotalURLs(len(validURLs))
-
 	// Run crawler
 	if c.config.CacheVerificationMode {
+		c.stats.SetTotalURLs(len(validURLs) * 2)
 		return c.runWithCacheVerification(validURLs)
 	}
 
+	c.stats.SetTotalURLs(len(validURLs))
 	return c.runStandardCrawl(validURLs)
 }
 
@@ -100,8 +105,8 @@ func (c *Crawler) runStandardCrawl(urls []string) error {
 	limiter := rate.NewLimiter(rate.Limit(c.config.RequestRate), c.config.RequestRate)
 
 	// Create worker pool
-	urlChan := make(chan string, len(urls))
-	resultChan := make(chan *stats.Result, len(urls))
+	urlChan := make(chan string, c.config.MaxWorkers)
+	resultChan := make(chan *stats.Result, c.config.MaxWorkers)
 
 	// Start workers
 	var wg sync.WaitGroup
@@ -178,8 +183,11 @@ func (c *Crawler) runWithCacheVerification(urls []string) error {
 func (c *Crawler) warmUpCache(ctx context.Context, urls []string) error {
 	limiter := rate.NewLimiter(rate.Limit(c.config.RequestRate), c.config.RequestRate)
 
-	urlChan := make(chan string, len(urls))
-	resultChan := make(chan *stats.Result, len(urls))
+	c.stats.StartWarmUp()
+	defer c.stats.FinishWarmUp()
+
+	urlChan := make(chan string, c.config.MaxWorkers)
+	resultChan := make(chan *stats.Result, c.config.MaxWorkers)
 
 	var wg sync.WaitGroup
 	for i := 0; i < c.config.MaxWorkers; i++ {
@@ -219,8 +227,11 @@ func (c *Crawler) warmUpCache(ctx context.Context, urls []string) error {
 func (c *Crawler) verifyCache(ctx context.Context, urls []string) error {
 	limiter := rate.NewLimiter(rate.Limit(c.config.RequestRate), c.config.RequestRate)
 
-	urlChan := make(chan string, len(urls))
-	resultChan := make(chan *stats.Result, len(urls))
+	c.stats.StartVerify()
+	defer c.stats.FinishVerify()
+
+	urlChan := make(chan string, c.config.MaxWorkers)
+	resultChan := make(chan *stats.Result, c.config.MaxWorkers)
 
 	var wg sync.WaitGroup
 	for i := 0; i < c.config.MaxWorkers; i++ {
@@ -359,6 +370,9 @@ func (c *Crawler) crawlURL(url string) *stats.Result {
 		}
 	}
 	defer func() {
+		if _, copyErr := io.Copy(io.Discard, io.LimitReader(resp.Body, maxResponseDrainBytes)); copyErr != nil {
+			c.logger.WithError(copyErr).Debug("Failed to drain response body")
+		}
 		if closeErr := resp.Body.Close(); closeErr != nil {
 			c.logger.WithError(closeErr).Warn("Failed to close response body")
 		}

@@ -91,22 +91,16 @@ func (s *Stats) AddResult(result *Result) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.processed++
-	s.totalDuration += result.Duration
+	s.addResultLocked(result)
+}
 
-	if result.Success {
-		s.successCount++
-	} else {
-		s.errorCount++
-	}
+// StartWarmUp marks the beginning of the cache warm-up phase.
+func (s *Stats) StartWarmUp() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	// Update min/max duration
-	if result.Duration < s.minDuration {
-		s.minDuration = result.Duration
-	}
-	if result.Duration > s.maxDuration {
-		s.maxDuration = result.Duration
-	}
+	s.warmUpStart = time.Now()
+	s.warmUpEnd = time.Time{}
 }
 
 // AddWarmUpResult adds a warm-up phase result
@@ -114,12 +108,25 @@ func (s *Stats) AddWarmUpResult(result *Result) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.warmUpStart.IsZero() {
-		s.warmUpStart = time.Now()
-	}
-
 	s.warmUpResults = append(s.warmUpResults, result)
-	s.processed++
+	s.addResultLocked(result)
+}
+
+// FinishWarmUp marks the end of the cache warm-up phase.
+func (s *Stats) FinishWarmUp() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.warmUpEnd = time.Now()
+}
+
+// StartVerify marks the beginning of the cache verification phase.
+func (s *Stats) StartVerify() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.verifyStart = time.Now()
+	s.verifyEnd = time.Time{}
 }
 
 // AddCacheResult adds a cache verification phase result
@@ -127,11 +134,16 @@ func (s *Stats) AddCacheResult(result *Result) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.verifyStart.IsZero() {
-		s.verifyStart = time.Now()
-	}
-
 	s.cacheResults = append(s.cacheResults, result)
+	s.addResultLocked(result)
+}
+
+// FinishVerify marks the end of the cache verification phase.
+func (s *Stats) FinishVerify() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.verifyEnd = time.Now()
 }
 
 // GetProgress returns current progress information
@@ -220,14 +232,6 @@ func (s *Stats) GetCacheStats() CacheStats {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Mark end times if not set
-	if !s.warmUpEnd.IsZero() && s.verifyStart.IsZero() {
-		s.warmUpEnd = time.Now()
-	}
-	if !s.verifyStart.IsZero() && s.verifyEnd.IsZero() {
-		s.verifyEnd = time.Now()
-	}
-
 	// Calculate cache hit/miss rates
 	var cacheHits, cacheMisses int
 	for _, result := range s.cacheResults {
@@ -263,6 +267,24 @@ func (s *Stats) GetCacheStats() CacheStats {
 		CacheHitRate: cacheHitRate,
 		WarmUpTime:   warmUpTime,
 		VerifyTime:   verifyTime,
+	}
+}
+
+func (s *Stats) addResultLocked(result *Result) {
+	s.processed++
+	s.totalDuration += result.Duration
+
+	if result.Success {
+		s.successCount++
+	} else {
+		s.errorCount++
+	}
+
+	if result.Duration < s.minDuration {
+		s.minDuration = result.Duration
+	}
+	if result.Duration > s.maxDuration {
+		s.maxDuration = result.Duration
 	}
 }
 

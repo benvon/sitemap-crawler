@@ -1,6 +1,10 @@
 package parser
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -135,6 +139,89 @@ https://example.com/page3`),
 				t.Errorf("Expected %d URLs, got %d", tt.expectedURLs, len(urls))
 			}
 		})
+	}
+}
+
+func TestParseSitemapRecursiveIndex(t *testing.T) {
+	t.Parallel()
+
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("User-Agent") != "TestCrawler/1.0" {
+			t.Errorf("Expected custom user agent, got %q", r.Header.Get("User-Agent"))
+		}
+		if r.Header.Get("X-Test") != "yes" {
+			t.Errorf("Expected custom header, got %q", r.Header.Get("X-Test"))
+		}
+
+		switch r.URL.Path {
+		case "/sitemap.xml":
+			if _, err := fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+	<sitemap><loc>%s/one.xml</loc></sitemap>
+	<sitemap><loc>%s/two.xml</loc></sitemap>
+</sitemapindex>`, server.URL, server.URL); err != nil {
+				t.Errorf("Failed to write sitemap index: %v", err)
+			}
+		case "/one.xml":
+			if _, err := fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+	<url><loc>https://example.com/page1</loc></url>
+	<url><loc>https://example.com/page2</loc></url>
+</urlset>`); err != nil {
+				t.Errorf("Failed to write URL set: %v", err)
+			}
+		case "/two.xml":
+			if _, err := fmt.Fprint(w, `https://example.com/page2
+https://example.com/page3`); err != nil {
+				t.Errorf("Failed to write plain text sitemap: %v", err)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	p := NewParser(30 * time.Second)
+	p.SetUserAgent("TestCrawler/1.0")
+
+	urls, err := p.ParseSitemap(server.URL+"/sitemap.xml", map[string]string{"X-Test": "yes"})
+	if err != nil {
+		t.Fatalf("ParseSitemap returned error: %v", err)
+	}
+
+	expected := []string{
+		"https://example.com/page1",
+		"https://example.com/page2",
+		"https://example.com/page3",
+	}
+	if len(urls) != len(expected) {
+		t.Fatalf("Expected %d URLs, got %d: %v", len(expected), len(urls), urls)
+	}
+	for i, expectedURL := range expected {
+		if urls[i] != expectedURL {
+			t.Errorf("Expected URL %d to be %q, got %q", i, expectedURL, urls[i])
+		}
+	}
+}
+
+func TestFetchAndParseRejectsOversizedSitemap(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := fmt.Fprint(w, strings.Repeat("x", maxSitemapBytes+1)); err != nil {
+			t.Errorf("Failed to write oversized sitemap: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	p := NewParser(30 * time.Second)
+	_, err := p.fetchAndParse(server.URL, nil)
+	if err == nil {
+		t.Fatal("Expected oversized sitemap error")
+	}
+	if !strings.Contains(err.Error(), "exceeds maximum size") {
+		t.Fatalf("Expected maximum size error, got %v", err)
 	}
 }
 
