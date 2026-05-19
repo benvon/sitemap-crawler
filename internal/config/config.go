@@ -200,6 +200,7 @@ func parseHeaders() error {
 func createConfig() (*Config, error) {
 	// Set environment variable prefix
 	viper.SetEnvPrefix("SITEMAP_CRAWLER")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 
 	// Create config struct

@@ -1,16 +1,17 @@
-# Makefile for thermostat-telemetry-reader
+# Makefile for sitemap-crawler
 # This makefile provides targets that mirror the CI pipeline and help with development
 
-.PHONY: help test lint security vulnerability-check build clean setup deps verify mod-tidy-check all ci-local clean-template
+.PHONY: help test lint security vulnerability-check build clean setup deps verify mod-tidy-check all ci-local clean-template tools
 
 # =============================================================================
 # Configuration
 # =============================================================================
 
-GO_VERSION := 1.24.4
+GO_VERSION := 1.25.10
 BINARY_NAME := sitemap-crawler
 BUILD_DIR := ./bin
 BUILD_ROOT := ./cmd/crawler
+GO_TOOL := go tool -modfile=tools/go.mod
 
 # =============================================================================
 # Help
@@ -21,16 +22,14 @@ help:
 	@echo "Available targets:"
 	@echo ""
 	@echo "Development targets:"
-	@echo "  setup              - Install required tools and dependencies via asdf"
+	@echo "  setup              - Download Go dependencies and module-pinned tools"
 	@echo "  deps               - Download and verify Go dependencies"
 	@echo "  clean              - Remove build artifacts"
 	@echo "  clean-template     - Clean up template code to prepare for new project"
 	@echo ""
 	@echo "Tool management targets:"
-	@echo "  update-tool-versions - Update .tool-versions with latest versions"
-	@echo "  pin-tool-version   - Pin a specific tool version"
-	@echo "  unpin-tool-version - Unpin a specific tool version"
-	@echo "  verify-tools       - Verify all development tools are working"
+	@echo "  tools              - Download module-pinned Go tools"
+	@echo "  verify-tools       - Verify Go and module-pinned Go tools are working"
 	@echo ""
 	@echo "Testing targets (mirror CI):"
 	@echo "  test               - Run all tests with race detection and coverage"
@@ -71,18 +70,12 @@ help:
 # Development Setup
 # =============================================================================
 
-## setup: Install required development tools via asdf
+## setup: Install required development dependencies
 setup: check-go-version
-	@echo "Installing development tools via asdf..."
-	@asdf plugin add golangci-lint || true
-	@asdf plugin add gosec || true
-	@echo "Installing asdf tools..."
-	@asdf install golang || echo "Go already installed"
-	@asdf install golangci-lint || echo "golangci-lint already installed"
-	@asdf install gosec || echo "gosec already installed"
-	@asdf reshim
-	@echo "Installing Go tools..."
-	@go install golang.org/x/vuln/cmd/govulncheck@latest
+	@echo "Downloading Go module dependencies..."
+	@go mod download
+	@echo "Downloading module-pinned Go tools..."
+	@$(MAKE) tools
 	@echo "Development tools installed successfully!"
 	@make verify-tools
 
@@ -92,7 +85,7 @@ check-go-version:
 	@if ! go version | grep -qE "go1\.(2[4-9]|[3-9][0-9])"; then \
 		echo "Error: Go version 1.24+ required. Current version:"; \
 		go version; \
-		echo "Please update Go using: asdf install"; \
+		echo "Please update Go using: mise install"; \
 		exit 1; \
 	fi
 	@echo "Go version check passed!"
@@ -115,78 +108,22 @@ verify:
 # Tool Management
 # =============================================================================
 
+## tools: Download module-pinned Go tools
+tools:
+	@echo "Downloading module-pinned Go tools..."
+	$(GO_TOOL) -n golangci-lint >/dev/null
+	$(GO_TOOL) -n gosec >/dev/null
+	$(GO_TOOL) -n govulncheck >/dev/null
+	@echo "Go tools are ready!"
+
 ## verify-tools: Verify all development tools are working correctly
 verify-tools:
 	@echo "Verifying development tools..."
 	@echo "Go version: $$(go version)"
-	@echo "golangci-lint version: $$(golangci-lint version)"
-	@echo "govulncheck version: $$(govulncheck -version 2>/dev/null || echo 'govulncheck not available')"
-	@echo "gosec version: $$(gosec -version 2>/dev/null || echo 'gosec not available')"
+	@echo "golangci-lint version: $$($(GO_TOOL) golangci-lint version)"
+	@echo "govulncheck version: $$($(GO_TOOL) govulncheck -version 2>/dev/null || echo 'govulncheck version unavailable')"
+	@echo "gosec version: $$($(GO_TOOL) gosec -version 2>/dev/null || echo 'gosec version unavailable')"
 	@echo "Tool verification completed!"
-
-## update-tool-versions: Update .tool-versions with latest versions (respects pinned versions)
-update-tool-versions:
-	@echo "Updating .tool-versions with latest versions..."
-	@if [ ! -f .tool-versions ]; then \
-		echo "Error: .tool-versions file not found"; \
-		exit 1; \
-	fi
-	@cp .tool-versions .tool-versions.backup
-	@while IFS= read -r line; do \
-		if echo "$$line" | grep -q "#pinned"; then \
-			echo "$$line" >> .tool-versions.tmp; \
-			echo "Keeping pinned: $$line"; \
-		else \
-			tool=$$(echo "$$line" | awk '{print $$1}'); \
-			if [ -n "$$tool" ] && [ "$$tool" != "#" ]; then \
-				latest=$$(asdf latest "$$tool" 2>/dev/null || echo "unknown"); \
-				if [ "$$latest" != "unknown" ] && ! echo "$$latest" | grep -q "unable to load\|does not have\|unknown"; then \
-					echo "$$tool $$latest" >> .tool-versions.tmp; \
-					echo "Updated $$tool to $$latest"; \
-				else \
-					echo "$$line" >> .tool-versions.tmp; \
-					echo "Keeping $$line (no update available)"; \
-				fi; \
-			else \
-				echo "$$line" >> .tool-versions.tmp; \
-			fi; \
-		fi; \
-	done < .tool-versions
-	@mv .tool-versions.tmp .tool-versions
-	@echo "Updated .tool-versions successfully!"
-	@echo "Run 'asdf install' to install updated versions"
-
-## pin-tool-version: Pin a specific tool version (usage: make pin-tool-version TOOL=golangci-lint VERSION=2.3.0)
-pin-tool-version:
-	@if [ -z "$(TOOL)" ] || [ -z "$(VERSION)" ]; then \
-		echo "Error: Usage: make pin-tool-version TOOL=toolname VERSION=version"; \
-		echo "Example: make pin-tool-version TOOL=golangci-lint VERSION=2.3.0"; \
-		exit 1; \
-	fi
-	@echo "Pinning $(TOOL) to version $(VERSION)..."
-	@if [ ! -f .tool-versions ]; then \
-		echo "Error: Error: .tool-versions file not found"; \
-		exit 1; \
-	fi
-	@sed -i.bak "s/^$(TOOL) .*/$(TOOL) $(VERSION) #pinned/" .tool-versions
-	@rm -f .tool-versions.bak
-	@echo "Pinned $(TOOL) to $(VERSION)"
-
-## unpin-tool-version: Unpin a specific tool version (usage: make unpin-tool-version TOOL=golangci-lint)
-unpin-tool-version:
-	@if [ -z "$(TOOL)" ]; then \
-		echo "Error: Usage: make unpin-tool-version TOOL=toolname"; \
-		echo "Example: make unpin-tool-version TOOL=golangci-lint"; \
-		exit 1; \
-	fi
-	@echo "Unpinning $(TOOL)..."
-	@if [ ! -f .tool-versions ]; then \
-		echo "Error: .tool-versions file not found"; \
-		exit 1; \
-	fi
-	@sed -i.bak "s/^$(TOOL) .* #pinned/$(TOOL) $$(asdf latest $(TOOL) 2>/dev/null || echo 'unknown')/" .tool-versions
-	@rm -f .tool-versions.bak
-	@echo "Unpinned $(TOOL)"
 
 # =============================================================================
 # Testing and Quality Checks
@@ -203,16 +140,16 @@ test:
 ## lint: Run golangci-lint
 lint: check-golangci-lint-version
 	@echo "Running linter..."
-	golangci-lint run --timeout=10m
+	$(GO_TOOL) golangci-lint run --timeout=10m
 	@echo "Linting completed!"
 
 ## check-golangci-lint-version: Verify golangci-lint version is correct
 check-golangci-lint-version:
 	@echo "Checking golangci-lint version..."
-	@if ! golangci-lint version | grep -q "version 2"; then \
+	@if ! $(GO_TOOL) golangci-lint version | grep -q "version 2"; then \
 		echo "Error: golangci-lint version 2.x required. Current version:"; \
-		golangci-lint version; \
-		echo "Please run: asdf reshim golangci-lint"; \
+		$(GO_TOOL) golangci-lint version; \
+		echo "Please run: make tools"; \
 		exit 1; \
 	fi
 	@echo "golangci-lint version check passed!"
@@ -220,24 +157,25 @@ check-golangci-lint-version:
 ## security: Run Gosec security scanner
 security:
 	@echo "Running security scan..."
-	gosec -fmt text -exclude=G101,G304 -exclude-generated ./...
+	$(GO_TOOL) gosec -fmt text -exclude=G101,G304 -exclude-generated ./...
 	@echo "Security scan completed!"
 
 ## vulnerability-check: Run govulncheck
 vulnerability-check:
 	@echo "Checking for vulnerabilities..."
-	govulncheck ./...
+	$(GO_TOOL) govulncheck ./...
 	@echo "Vulnerability check completed!"
 
 ## mod-tidy-check: Check if go mod tidy is needed
 mod-tidy-check:
 	@echo "Checking if go mod tidy is needed..."
 	@go mod tidy
-	@git diff --exit-code go.mod go.sum || { \
-		echo "Error: go.mod or go.sum is not tidy. Please run 'go mod tidy' and commit the changes."; \
+	@go -C tools mod tidy
+	@git diff --exit-code go.mod go.sum tools/go.mod tools/go.sum || { \
+		echo "Error: go.mod, go.sum, tools/go.mod, or tools/go.sum is not tidy. Please run 'go mod tidy' and 'go -C tools mod tidy' and commit the changes."; \
 		exit 1; \
 	}
-	@echo "go.mod and go.sum are tidy!"
+	@echo "Go modules are tidy!"
 
 # =============================================================================
 # Build and Release

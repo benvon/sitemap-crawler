@@ -1,6 +1,6 @@
-# Contributing to ai-code-template-go
+# Contributing to sitemap-crawler
 
-Thank you for your interest in contributing to this AI-assisted Go template repository! This guide will help you get started.
+Thank you for your interest in contributing to sitemap-crawler. This guide will help you get started.
 
 ## Code of Conduct
 
@@ -28,7 +28,7 @@ By participating in this project, you agree to abide by our Code of Conduct. Ple
 3. Make your changes
 4. Add tests for your changes
 5. Run the test suite (`go test ./...`)
-6. Run linting (`golangci-lint run`)
+6. Run linting (`make lint`)
 7. Commit your changes (`git commit -m 'Add amazing feature'`)
 8. Push to your branch (`git push origin feature/amazing-feature`)
 9. Open a Pull Request using the PR template
@@ -37,29 +37,28 @@ By participating in this project, you agree to abide by our Code of Conduct. Ple
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.25.9 or later
 - Git
-- golangci-lint (for linting)
 - GoReleaser (for testing releases)
 
 ### Local Development
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR-USERNAME/ai-code-template-go.git
-cd ai-code-template-go
+git clone https://github.com/YOUR-USERNAME/sitemap-crawler.git
+cd sitemap-crawler
 
-# Install dependencies
-go mod tidy
+# Install dependencies and module-pinned Go tools
+make setup
 
 # Run tests
 go test ./...
 
 # Run linter
-golangci-lint run
+make lint
 
 # Build locally
-go build -o ./bin/app ./
+make build
 ```
 
 ## Coding Standards
@@ -68,7 +67,7 @@ go build -o ./bin/app ./
 
 - Follow the [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - Use `gofmt` to format your code
-- Run `golangci-lint run` before submitting
+- Run `make lint` before submitting
 - Write meaningful commit messages
 
 ### Testing
