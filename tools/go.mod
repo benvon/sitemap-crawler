@@ -1,6 +1,6 @@
 module github.com/benvon/sitemap-crawler/tools
 
-go 1.25.10
+go 1.25.11
 
 tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
