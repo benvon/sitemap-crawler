@@ -7,7 +7,6 @@
 # Configuration
 # =============================================================================
 
-GO_VERSION := 1.25.10
 BINARY_NAME := sitemap-crawler
 BUILD_DIR := ./bin
 BUILD_ROOT := ./cmd/crawler
