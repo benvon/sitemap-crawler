@@ -37,7 +37,7 @@ By participating in this project, you agree to abide by our Code of Conduct. Ple
 
 ### Prerequisites
 
-- Go 1.25.9 or later
+- Go 1.26.5 or later
 - Git
 - GoReleaser (for testing releases)
 
