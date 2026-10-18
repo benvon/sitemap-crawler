@@ -15,7 +15,7 @@ echo -e "${GREEN}Setting up sitemap-crawler development environment...${NC}"
 
 # Check if Go is installed
 if ! command -v go &> /dev/null; then
-    echo -e "${RED}Error: Go is not installed. Please install Go 1.23 or later.${NC}"
+    echo -e "${RED}Error: Go is not installed. Please install Go 1.27.2 or later.${NC}"
     echo -e "${YELLOW}Visit: https://golang.org/doc/install${NC}"
     exit 1
 fi
