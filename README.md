@@ -21,7 +21,7 @@ A high-performance, configurable sitemap crawling tool written in Go. This tool 
 
 ### Prerequisites
 
-- Go 1.23 or later
+- Go 1.27.2 or later
 - Git
 
 ### Build from Source
